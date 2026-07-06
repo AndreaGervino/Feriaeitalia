@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Feriaeitalia__create_guide_section",
+      "mcp__Feriaeitalia__update_guide_section",
+      "mcp__Feriaeitalia__reorder_guide_sections",
+      "mcp__Feriaeitalia__set_guide_faqs",
+      "mcp__Feriaeitalia__set_guide_related_beaches",
+      "mcp__Feriaeitalia__sync_guide_body_beach_links"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__Feriaeitalia__create_guide|mcp__Feriaeitalia__update_guide",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c 'if ((.tool_input.status // \"draft\") == \"published\") then {hookSpecificOutput: {hookEventName: \"PreToolUse\", permissionDecision: \"ask\", permissionDecisionReason: \"Feriaeitalia guide status is published - requires manual approval\"}} else {hookSpecificOutput: {hookEventName: \"PreToolUse\", permissionDecision: \"allow\", permissionDecisionReason: \"Draft-only Feriaeitalia guide edit auto-approved\"}} end'"
+          }
+        ]
+      }
+    ]
+  }
+}
