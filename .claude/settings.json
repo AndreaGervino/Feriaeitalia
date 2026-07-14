@@ -6,7 +6,12 @@
       "mcp__Feriaeitalia__reorder_guide_sections",
       "mcp__Feriaeitalia__set_guide_faqs",
       "mcp__Feriaeitalia__set_guide_related_beaches",
-      "mcp__Feriaeitalia__sync_guide_body_beach_links"
+      "mcp__Feriaeitalia__sync_guide_body_beach_links",
+      "mcp__Feriaeitalia__list_beaches",
+      "mcp__Feriaeitalia__get_beach",
+      "mcp__Feriaeitalia__validate_slug",
+      "mcp__Feriaeitalia__search_content",
+      "mcp__Feriaeitalia__list_all_beaches"
     ]
   },
   "hooks": {
@@ -17,6 +22,15 @@
           {
             "type": "command",
             "command": "jq -c 'if ((.tool_input.status // \"draft\") == \"published\") then {hookSpecificOutput: {hookEventName: \"PreToolUse\", permissionDecision: \"ask\", permissionDecisionReason: \"Feriaeitalia guide status is published - requires manual approval\"}} else {hookSpecificOutput: {hookEventName: \"PreToolUse\", permissionDecision: \"allow\", permissionDecisionReason: \"Draft-only Feriaeitalia guide edit auto-approved\"}} end'"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__Feriaeitalia__create_beach",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '(.tool_input.status // \"draft\") as $status | ((.tool_input.destination // \"\") | ascii_downcase) as $dest | ((.tool_input.breadcrumb.region // \"\") | ascii_downcase) as $region | if $status == \"published\" then {hookSpecificOutput: {hookEventName: \"PreToolUse\", permissionDecision: \"ask\", permissionDecisionReason: \"Beach status is published - requires manual approval\"}} elif ($dest | test(\"elba|tuscany\")) or ($region | test(\"elba|tuscany\")) then {hookSpecificOutput: {hookEventName: \"PreToolUse\", permissionDecision: \"allow\", permissionDecisionReason: \"Draft Tuscany/Elba beach create auto-approved\"}} else {hookSpecificOutput: {hookEventName: \"PreToolUse\", permissionDecision: \"ask\", permissionDecisionReason: \"Destination not pre-approved for auto-create - requires manual approval\"}} end'"
           }
         ]
       }
