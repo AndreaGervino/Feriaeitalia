@@ -1,6 +1,7 @@
 """Recalculate transfer_* columns in ski_finder_data.csv with OSRM driving routes.
 
-OSRM duration x 1.1 (winter), rounded to nearest 5 min, blank if > 360.
+OSRM duration x 1.1 (winter), rounded to nearest 5 min, blank if > 360,
+written as "1h 30m" per the Trip finder data spec.
 Usage: python3 osrm_transfers.py ski_finder_data.csv
 """
 import csv, json, sys, time, urllib.request
@@ -97,7 +98,7 @@ def main(path):
                 res[s][a] = ""
                 continue
             m = 5 * round(sec * 1.1 / 60 / 5)
-            res[s][a] = "" if m > 360 else m
+            res[s][a] = "" if m > 360 else f"{m // 60}h {m % 60:02d}m"
     rows = list(csv.DictReader(open(path, encoding="utf-8")))
     old = "Transfers: NOT yet recalculated with OSRM (router.project-osrm.org still blocked by this session's network policy) - these are the earlier manual estimates."
     new = "Transfers: OSRM driving duration x1.1 for winter, rounded to 5 min; blank if over 360."
@@ -109,7 +110,8 @@ def main(path):
             extra.append(END_OVERRIDE[r["slug"]][1])
         extra += [f"{a} {why}" for (sl, a), (_, why) in WAYPOINTS.items() if sl == r["slug"]]
         n = new + (" Routing fixes: " + "; ".join(extra) + "." if extra else "")
-        r["notes"] = r["notes"].replace(old, n)
+        if old in r["notes"]:
+            r["notes"] = r["notes"].replace(old, n)
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
