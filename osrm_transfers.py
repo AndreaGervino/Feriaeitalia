@@ -28,10 +28,45 @@ COORDS = {
  "torgnon": (45.8026, 7.5709), "vigo-di-fassa": (46.4181, 11.6725),
 }
 
+# Stored coordinates that snap onto slow tracks: route to the village road instead.
+END_OVERRIDE = {
+    "bardonecchia": ((45.069627, 6.71135), "stored point snaps onto Strada del Colomion track (+68 min); routed to the town end of that track instead"),
+    "claviere": ((44.9386, 6.7525), "stored point is on the slopes and routes via a track (+26 min); routed to Claviere village on the SS24 instead"),
+}
+# Force winter-open roads where OSRM picks passes closed in winter.
+TIRANO = (46.2155, 10.1689)      # avoids Passo del Mortirolo
+LIVIGNO = (46.539, 10.135)       # INN via Munt la Schera tunnel, then Foscagno (avoids Umbrail/Stelvio)
+FOSCAGNO = (46.4848, 10.2205)    # Livigno from the south via Bormio and Foscagno (avoids Forcola di Livigno)
+CHIAVENNA = (46.3215, 9.3985)    # avoids Spluga
+WAYPOINTS = {}
+for s_ in ("bormio", "cima-piazzi-san-colombano", "santa-caterina-valfurva"):
+    for a in ("BGY", "VRN", "VCE"):
+        WAYPOINTS[(s_, a)] = ([TIRANO], "via Tirano (Mortirolo closed in winter)")
+    WAYPOINTS[(s_, "INN")] = ([LIVIGNO, FOSCAGNO], "via Munt la Schera tunnel, Livigno and Foscagno (Umbrail/Stelvio closed in winter)")
+WAYPOINTS[("aprica", "INN")] = ([LIVIGNO, FOSCAGNO, TIRANO], "via Livigno, Bormio and Tirano (Umbrail/Stelvio closed in winter)")
+for a in ("TRN", "MXP", "BGY", "VRN", "VCE"):
+    WAYPOINTS[("livigno", a)] = ([TIRANO, FOSCAGNO], "via Tirano, Bormio and Foscagno (Forcola di Livigno closed in winter)")
+for a in ("MXP", "INN"):
+    WAYPOINTS[("madesimo", a)] = ([CHIAVENNA], "via Chiavenna (Spluga closed in winter)")
+
+def route(points):
+    coords = ";".join(f"{lon},{lat}" for lat, lon in points)
+    url = f"https://router.project-osrm.org/route/v1/driving/{coords}?overview=false"
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r:
+                d = json.load(r)
+            if d.get("code") == "Ok":
+                return d["routes"][0]["duration"]
+        except Exception as e:
+            err = e
+        time.sleep(2 ** (attempt + 1))
+    raise SystemExit(f"OSRM route failed: {err}")
+
 def table():
     # one OSRM table call: 6 airport sources x 49 destinations
     slugs = list(COORDS)
-    pts = list(AIRPORTS.values()) + [COORDS[s] for s in slugs]
+    pts = list(AIRPORTS.values()) + [END_OVERRIDE.get(s, (COORDS[s],))[0] for s in slugs]
     coords = ";".join(f"{lon},{lat}" for lat, lon in pts)
     src = ";".join(str(i) for i in range(len(AIRPORTS)))
     dst = ";".join(str(i) for i in range(len(AIRPORTS), len(pts)))
@@ -49,6 +84,10 @@ def table():
 
 def main(path):
     slugs, dur = table()
+    for (s, a), (via, _) in WAYPOINTS.items():
+        j, i = slugs.index(s), list(AIRPORTS).index(a)
+        dur[i][j] = route([AIRPORTS[a], *via, END_OVERRIDE.get(s, (COORDS[s],))[0]])
+        time.sleep(1)
     res = {}
     for j, s in enumerate(slugs):
         res[s] = {}
@@ -65,7 +104,12 @@ def main(path):
     for r in rows:
         for a in AIRPORTS:
             r[f"transfer_{a}"] = res[r["slug"]][a]
-        r["notes"] = r["notes"].replace(old, new)
+        extra = []
+        if r["slug"] in END_OVERRIDE:
+            extra.append(END_OVERRIDE[r["slug"]][1])
+        extra += [f"{a} {why}" for (sl, a), (_, why) in WAYPOINTS.items() if sl == r["slug"]]
+        n = new + (" Routing fixes: " + "; ".join(extra) + "." if extra else "")
+        r["notes"] = r["notes"].replace(old, n)
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
